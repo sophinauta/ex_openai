@@ -33,15 +33,15 @@ defmodule ExOpenAI.StreamingClient do
     end
   end
 
-  def start_link(stream_to_pid, convert_response_fx) do
+  def start_link(streaming_client_pid_pid, convert_response_fx) do
     GenServer.start_link(__MODULE__,
-      stream_to: stream_to_pid,
+      streaming_client_pid: streaming_client_pid_pid,
       convert_response_fx: convert_response_fx
     )
   end
 
-  def init(stream_to: pid, convert_response_fx: fx) do
-    {:ok, %{stream_to: pid, convert_response_fx: fx}}
+  def init(streaming_client_pid: pid, convert_response_fx: fx) do
+    {:ok, %{streaming_client_pid: pid, convert_response_fx: fx}}
   end
 
   @doc """
@@ -59,21 +59,15 @@ defmodule ExOpenAI.StreamingClient do
 
   def handle_chunk(
         chunk,
-        %{stream_to: pid_or_fx, convert_response_fx: convert_fx}
+        %{streaming_client_pid: pid_or_fx, convert_response_fx: convert_fx}
       ) do
     chunk
     |> String.trim()
     |> case do
       "[DONE]" ->
-        Logger.debug("Received [DONE]")
         forward_response(pid_or_fx, :finish)
 
-      "event: " <> event_type ->
-        Logger.debug("Received event: #{inspect(event_type)}")
-
       etc ->
-        Logger.debug("Received event payload: #{inspect(etc)}")
-
         json =
           Jason.decode(etc)
           |> convert_fx.()
@@ -82,8 +76,10 @@ defmodule ExOpenAI.StreamingClient do
           {:ok, res} ->
             forward_response(pid_or_fx, {:data, res})
 
-          {:error, err} ->
-            forward_response(pid_or_fx, {:error, err})
+          {:error, _err} ->
+            Logger.debug("Found chunk with incomplete JSON: #{inspect(etc)}")
+
+            forward_response(pid_or_fx, {:data, %{partial_chunk: etc}})
         end
     end
   end
@@ -103,6 +99,7 @@ defmodule ExOpenAI.StreamingClient do
         %HTTPoison.AsyncChunk{chunk: chunk},
         state
       ) do
+
     chunk
     |> String.trim()
     |> String.split("data:")
@@ -118,7 +115,7 @@ defmodule ExOpenAI.StreamingClient do
   def handle_info(%HTTPoison.Error{reason: reason}, state) do
     Logger.error("Error: #{inspect(reason)}")
 
-    forward_response(state.stream_to, {:error, reason})
+    forward_response(state.streaming_client_pid, {:error, reason})
     {:noreply, state}
   end
 
@@ -126,7 +123,7 @@ defmodule ExOpenAI.StreamingClient do
     Logger.debug("Connection status: #{inspect(status)}")
 
     if code >= 400 do
-      forward_response(state.stream_to, {:error, "received error status code: #{code}"})
+      forward_response(state.streaming_client_pid, {:error, "received error status code: #{code}"})
     end
 
     {:noreply, state}
@@ -135,7 +132,7 @@ defmodule ExOpenAI.StreamingClient do
   def handle_info(%HTTPoison.AsyncEnd{}, state) do
     # :finish is already sent when data ends
     # TODO: may need a separate event for this
-    # forward_response(state.stream_to, :finish)
+    # forward_response(state.streaming_client_pid, :finish)
 
     {:noreply, state}
   end

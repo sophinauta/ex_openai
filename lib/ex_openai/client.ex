@@ -100,6 +100,8 @@ defmodule ExOpenAI.Client do
 
     base_url = Map.get(request_options_map, :base_url)
 
+    url = Map.get(request_options_map, :override_uri, url)
+
     url
     |> add_base_url(base_url)
     |> get(headers, request_options)
@@ -138,6 +140,8 @@ defmodule ExOpenAI.Client do
 
     base_url = Map.get(request_options_map, :base_url)
 
+    url = Map.get(request_options_map, :override_uri, url)
+
     url
     |> add_base_url(base_url)
     |> post(body, headers, request_options)
@@ -162,6 +166,8 @@ defmodule ExOpenAI.Client do
       |> add_bearer_header(Map.get(request_options_map, :openai_api_key, nil))
 
     base_url = Map.get(request_options_map, :base_url)
+
+    url = Map.get(request_options_map, :override_uri, url)
 
     url
     |> add_base_url(base_url)
@@ -213,6 +219,8 @@ defmodule ExOpenAI.Client do
       |> add_bearer_header(Map.get(request_options_map, :openai_api_key, nil))
 
     base_url = Map.get(request_options_map, :base_url)
+
+    url = Map.get(request_options_map, :override_uri, url)
 
     url
     |> add_base_url(base_url)

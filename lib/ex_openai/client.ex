@@ -3,7 +3,7 @@ defmodule ExOpenAI.Client do
   use HTTPoison.Base
   alias ExOpenAI.Config
 
-  def process_url(url), do: Config.api_url() <> url
+  def add_base_url(url, base_url), do: Config.api_url(base_url) <> url
 
   def process_response_body(body) do
     case Jason.decode(body) do
@@ -98,20 +98,26 @@ defmodule ExOpenAI.Client do
       |> add_organization_header(Map.get(request_options_map, :openai_organization_key, nil))
       |> add_bearer_header(Map.get(request_options_map, :openai_api_key, nil))
 
+    base_url = Map.get(request_options_map, :base_url)
+
     url
+    |> add_base_url(base_url)
     |> get(headers, request_options)
     |> handle_response()
     |> convert_response.()
+  end
+
+  defp strip_params(params) do
+    params
+    # remove stream_to from params as PID messes with Jason
+    |> Map.drop([:stream_to, :openai_organization_key, :openai_api_key])
   end
 
   def api_post(url, params \\ [], request_options \\ [], convert_response) do
     body =
       params
       |> Enum.into(%{})
-      # remove stream_to from params as PID messes with Jason
-      |> Map.delete(:stream_to)
-      |> Map.delete(:openai_organization_key)
-      |> Map.delete(:openai_api_key)
+      |> strip_params()
       |> Jason.encode()
       |> elem(1)
 
@@ -130,7 +136,10 @@ defmodule ExOpenAI.Client do
       |> add_organization_header(Map.get(request_options_map, :openai_organization_key, nil))
       |> add_bearer_header(Map.get(request_options_map, :openai_api_key, nil))
 
+    base_url = Map.get(request_options_map, :base_url)
+
     url
+    |> add_base_url(base_url)
     |> post(body, headers, request_options)
     |> handle_response()
     |> convert_response.()
@@ -152,7 +161,10 @@ defmodule ExOpenAI.Client do
       |> add_organization_header(Map.get(request_options_map, :openai_organization_key, nil))
       |> add_bearer_header(Map.get(request_options_map, :openai_api_key, nil))
 
+    base_url = Map.get(request_options_map, :base_url)
+
     url
+    |> add_base_url(base_url)
     |> delete(headers, request_options)
     |> handle_response()
     |> convert_response.()
@@ -189,6 +201,9 @@ defmodule ExOpenAI.Client do
     multipart_body =
       {:multipart,
        params
+       |> Enum.into(%{})
+       |> strip_params()
+       |> Map.to_list()
        |> Enum.map(&multipart_param/1)}
 
     headers =
@@ -197,7 +212,10 @@ defmodule ExOpenAI.Client do
       |> add_organization_header(Map.get(request_options_map, :openai_organization_key, nil))
       |> add_bearer_header(Map.get(request_options_map, :openai_api_key, nil))
 
+    base_url = Map.get(request_options_map, :base_url)
+
     url
+    |> add_base_url(base_url)
     |> post(multipart_body, headers, request_options)
     |> handle_response()
     |> convert_response.()
